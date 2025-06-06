@@ -277,25 +277,56 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener { // Added
     // }
 
     private fun playSound(soundResourceId: Int) {
-        // Release any existing MediaPlayer instance
-        mediaPlayer?.release()
-        mediaPlayer = null
+        Log.d("MediaPlayerDebug", "playSound called with soundResourceId: $soundResourceId (0x${Integer.toHexString(soundResourceId)})")
 
         try {
-            mediaPlayer = MediaPlayer.create(this, soundResourceId)
-            mediaPlayer?.setOnCompletionListener {
-                // Release the MediaPlayer once playback is complete
-                it.release()
+            // Release any existing MediaPlayer instance.
+            if (mediaPlayer != null) {
+                Log.d("MediaPlayerDebug", "Releasing existing mediaPlayer instance.")
+                mediaPlayer?.release()
                 mediaPlayer = null
-                Log.d("MediaPlayer", "Sound playback completed and resources released.")
+            } else {
+                Log.d("MediaPlayerDebug", "No existing mediaPlayer instance to release.")
             }
+
+            Log.d("MediaPlayerDebug", "Attempting to create MediaPlayer for resource ID: $soundResourceId")
+            mediaPlayer = MediaPlayer.create(this, soundResourceId)
+
+            if (mediaPlayer == null) {
+                val resourceName = try { resources.getResourceEntryName(soundResourceId) } catch (e: Exception) { "unknown" }
+                Log.e("MediaPlayerDebug", "MediaPlayer.create returned null for resource ID: $soundResourceId (Name: $resourceName). Sound will not play.")
+                Toast.makeText(this, "Error: Cannot create media for sound: $resourceName", Toast.LENGTH_LONG).show() // Display for a longer duration
+                return // Exit if creation failed
+            }
+            Log.d("MediaPlayerDebug", "MediaPlayer created successfully for $soundResourceId (Name: ${try { resources.getResourceEntryName(soundResourceId) } catch (e: Exception) { "unknown" }}).")
+
+            mediaPlayer?.setOnErrorListener { mp, what, extra ->
+                Log.e("MediaPlayerDebug", "MediaPlayer error occurred: what: $what, extra: $extra for resource ID: $soundResourceId")
+                // Returning true indicates the error was handled
+                // Consider releasing the media player here too
+                mp.release()
+                mediaPlayer = null
+                true
+            }
+
+            mediaPlayer?.setOnCompletionListener { mp ->
+                Log.d("MediaPlayerDebug", "Sound playback completed for resource ID: $soundResourceId. Releasing MediaPlayer.")
+                mp.release()
+                mediaPlayer = null // Nullify after release
+            }
+
+            Log.d("MediaPlayerDebug", "Attempting to start media player.")
             mediaPlayer?.start()
-            Log.d("MediaPlayer", "Sound playback started.")
+            Log.d("MediaPlayerDebug", "Media player started for resource ID: $soundResourceId.")
+
         } catch (e: Exception) {
-            Log.e("MediaPlayer", "Error playing sound", e)
+            Log.e("MediaPlayerDebug", "Exception in playSound for resource ID: $soundResourceId", e)
             Toast.makeText(this, "Error playing sound: ${e.message}", Toast.LENGTH_SHORT).show()
-            mediaPlayer?.release() // Clean up on error
-            mediaPlayer = null
+            // Ensure cleanup on exception
+            if (mediaPlayer != null) {
+                mediaPlayer?.release()
+                mediaPlayer = null
+            }
         }
     }
 
@@ -381,9 +412,9 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener { // Added
         }
 
         // Explicitly stop and release current MediaPlayer before playing end bowl sound
-        mediaPlayer?.stop()
-        mediaPlayer?.release()
-        mediaPlayer = null
+        // mediaPlayer?.stop() // Temporarily commented out
+        // mediaPlayer?.release() // Temporarily commented out
+        // mediaPlayer = null // Temporarily commented out
 
         if (wasMeditating) {
             playSound(R.raw.singing_bowl_end)
