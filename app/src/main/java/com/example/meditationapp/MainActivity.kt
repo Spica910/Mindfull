@@ -165,22 +165,31 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener { // Added
         tts = TextToSpeech(this, this) // Initialize TTS
     }
 
-    override fun onInit(status: Int) { // Added for TTS
+    override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
-            // Check if Korean language is available
+            Log.i("TTS", "TTS Engine Initialized successfully.")
+            // Attempt to set Korean language
             val langResult = tts?.setLanguage(Locale.KOREAN)
             if (langResult == TextToSpeech.LANG_MISSING_DATA || langResult == TextToSpeech.LANG_NOT_SUPPORTED) {
-                Log.e("TTS", "Korean language is not supported or missing data.")
-                // Optionally, try setting to default language or show a toast
+                Log.e("TTS", "Korean language is not supported or missing data for TTS. Trying default.")
+                // Fallback to default language
                 val defaultLangResult = tts?.setLanguage(Locale.getDefault())
                 if (defaultLangResult == TextToSpeech.LANG_MISSING_DATA || defaultLangResult == TextToSpeech.LANG_NOT_SUPPORTED) {
-                    Log.e("TTS", "Default language is also not supported or missing data.")
+                    Log.e("TTS", "Default language is also not supported or missing data for TTS.")
                     Toast.makeText(this, "TTS language not supported.", Toast.LENGTH_SHORT).show()
                 } else {
-                    Log.i("TTS", "TTS initialized with default system language.")
+                    Log.i("TTS", "TTS language set to default system language.")
+                    // Set speech rate and pitch for default language
+                    tts?.setSpeechRate(0.8f) // Slower speed
+                    tts?.setPitch(1.0f)    // Normal pitch
+                    Log.i("TTS", "Set speech rate to 0.8, pitch to 1.0 for default language.")
                 }
             } else {
-                Log.i("TTS", "TTS initialized successfully with Korean.")
+                Log.i("TTS", "TTS language set to Korean.")
+                // Set speech rate and pitch for Korean
+                tts?.setSpeechRate(0.8f) // Slower speed
+                tts?.setPitch(1.0f)    // Normal pitch
+                Log.i("TTS", "Set speech rate to 0.8, pitch to 1.0 for Korean.")
             }
         } else {
             Log.e("TTS", "TTS initialization failed with status: $status")
@@ -276,11 +285,9 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener { // Added
     //     }
     // }
 
-    private fun playSound(soundResourceId: Int) {
-        Log.d("MediaPlayerDebug", "playSound called with soundResourceId: $soundResourceId (0x${Integer.toHexString(soundResourceId)})")
-
+    private fun tryPlaySoundAndReturnSuccess(soundResourceId: Int): Boolean {
+        Log.d("MediaPlayerDebug", "tryPlaySoundAndReturnSuccess called with soundResourceId: $soundResourceId (0x${Integer.toHexString(soundResourceId)})")
         try {
-            // Release any existing MediaPlayer instance.
             if (mediaPlayer != null) {
                 Log.d("MediaPlayerDebug", "Releasing existing mediaPlayer instance.")
                 mediaPlayer?.release()
@@ -295,46 +302,46 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener { // Added
             if (mediaPlayer == null) {
                 val resourceName = try { resources.getResourceEntryName(soundResourceId) } catch (e: Exception) { "unknown" }
                 Log.e("MediaPlayerDebug", "MediaPlayer.create returned null for resource ID: $soundResourceId (Name: $resourceName). Sound will not play.")
-                Toast.makeText(this, "Error: Cannot create media for sound: $resourceName", Toast.LENGTH_LONG).show() // Display for a longer duration
-                return // Exit if creation failed
+                Toast.makeText(this, "Error: Cannot create media for sound: $resourceName", Toast.LENGTH_LONG).show()
+                return false // Indicate failure
             }
-            Log.d("MediaPlayerDebug", "MediaPlayer created successfully for $soundResourceId (Name: ${try { resources.getResourceEntryName(soundResourceId) } catch (e: Exception) { "unknown" }}).")
+            val resourceName = try { resources.getResourceEntryName(soundResourceId) } catch (e: Exception) { "unknown" }
+            Log.d("MediaPlayerDebug", "MediaPlayer created successfully for $soundResourceId (Name: $resourceName).")
 
             mediaPlayer?.setOnErrorListener { mp, what, extra ->
                 Log.e("MediaPlayerDebug", "MediaPlayer error occurred: what: $what, extra: $extra for resource ID: $soundResourceId")
-                // Returning true indicates the error was handled
-                // Consider releasing the media player here too
                 mp.release()
                 mediaPlayer = null
-                true
+                true // Error handled
             }
 
             mediaPlayer?.setOnCompletionListener { mp ->
                 Log.d("MediaPlayerDebug", "Sound playback completed for resource ID: $soundResourceId. Releasing MediaPlayer.")
                 mp.release()
-                mediaPlayer = null // Nullify after release
+                mediaPlayer = null
             }
 
             Log.d("MediaPlayerDebug", "Attempting to start media player.")
             mediaPlayer?.start()
             Log.d("MediaPlayerDebug", "Media player started for resource ID: $soundResourceId.")
+            return true // Indicate success
 
         } catch (e: Exception) {
-            Log.e("MediaPlayerDebug", "Exception in playSound for resource ID: $soundResourceId", e)
+            Log.e("MediaPlayerDebug", "Exception in tryPlaySoundAndReturnSuccess for resource ID: $soundResourceId", e)
             Toast.makeText(this, "Error playing sound: ${e.message}", Toast.LENGTH_SHORT).show()
-            // Ensure cleanup on exception
             if (mediaPlayer != null) {
                 mediaPlayer?.release()
                 mediaPlayer = null
             }
+            return false // Indicate failure
         }
     }
 
     // Example usage (to be called later, e.g., on button click):
     // To play start sound:
-    // playSound(R.raw.singing_bowl_start)
+    // tryPlaySoundAndReturnSuccess(R.raw.singing_bowl_start)
     // To play end sound:
-    // playSound(R.raw.singing_bowl_end)
+    // tryPlaySoundAndReturnSuccess(R.raw.singing_bowl_end)
 
     private fun startMeditation() {
         if (isMeditating) return
@@ -343,7 +350,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener { // Added
         buttonStart.setImageResource(R.drawable.ic_stop_placeholder)
 
         currentSegmentIndex = 0 // Start with the first segment
-        playSound(R.raw.singing_bowl_start) // Play start sound
+        tryPlaySoundAndReturnSuccess(R.raw.singing_bowl_start) // Play start sound
 
         if (meditationSegments.isNotEmpty()) {
             updateGuideText(getString(meditationSegments[0].stringResId))
@@ -352,8 +359,14 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener { // Added
             initialAudioHandler = Handler(Looper.getMainLooper())
             initialAudioRunnable = Runnable {
                 if (isMeditating && currentSegmentIndex == 0) {
-                    playSound(meditationSegments[0].audioResId)
-                    Log.i("MeditationApp", "Playing segment 0 audio after delay.")
+                    if (meditationSegments.isNotEmpty()) { // Ensure segments exist
+                        val audioSuccess = tryPlaySoundAndReturnSuccess(meditationSegments[0].audioResId)
+                        if (!audioSuccess) {
+                            // Fallback to TTS if audio failed for the first segment
+                            speak(getString(meditationSegments[0].stringResId))
+                            Log.i("MeditationApp", "Audio fallback in initialAudioRunnable: Spoke segment 0")
+                        }
+                    }
                 }
             }
             initialAudioHandler?.postDelayed(initialAudioRunnable!!, 1500) // 1.5s delay
@@ -374,7 +387,12 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener { // Added
                     if (elapsedTime >= nextSegment.startTimeMillis) {
                         currentSegmentIndex++ // Move to the next segment
                         updateGuideText(getString(nextSegment.stringResId))
-                        playSound(nextSegment.audioResId) // playSound will stop previous audio
+                        val audioSuccess = tryPlaySoundAndReturnSuccess(nextSegment.audioResId)
+                        if (!audioSuccess) {
+                            // Fallback to TTS if audio failed for this segment
+                            speak(getString(nextSegment.stringResId))
+                            Log.i("MeditationApp", "Audio fallback in onTick: Spoke segment ${getString(nextSegment.stringResId)}")
+                        }
                         Log.i("MeditationApp", "Transitioning to segment $currentSegmentIndex at $elapsedTime ms: ${getString(nextSegment.stringResId)}")
                     }
                 }
@@ -417,7 +435,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener { // Added
         // mediaPlayer = null // Temporarily commented out
 
         if (wasMeditating) {
-            playSound(R.raw.singing_bowl_end)
+            tryPlaySoundAndReturnSuccess(R.raw.singing_bowl_end)
             if (meditationSegments.isNotEmpty()) {
                 // Show text of the last segment that was playing or should have played
                 // If currentSegmentIndex is valid, use it, otherwise default to last.
