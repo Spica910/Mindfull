@@ -50,7 +50,8 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var cameraExecutor: ExecutorService // Added
     private var imageAnalysis: ImageAnalysis? = null // Added
-    // private var generativeModel: com.google.ai.client.generativeai.GenerativeModel? = null // Placeholder
+    // private var generativeModel: com.google.ai.client.generativeai.GenerativeModel? = null // Placeholder - Now fully commented
+    // private var generativeModel: GenerativeModel? = null // Fully commented out
 
     private var isMeditating = false
     private var meditationTimeMillis: Long = 5 * 60 * 1000 // Default 5 minutes

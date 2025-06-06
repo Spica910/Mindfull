@@ -7,15 +7,7 @@ android {
     namespace 'com.example.geminiapp'
     compileSdk 34
 
-    Properties properties = new Properties()
-    if (rootProject.file("local.properties").exists()) {
-        properties.load(rootProject.file("local.properties").newDataInputStream())
-    } else {
-        // Fallback if local.properties is missing, though the goal is to create it.
-        // This could also throw an error or use a default non-functional key.
-        // For this subtask, we assume local.properties will be created.
-        println "Warning: local.properties file not found. GEMINI_API_KEY will not be set from it."
-    }
+    // Properties loading is now moved inside defaultConfig conditionally
 
     buildFeatures { // Ensuring buildFeatures is before defaultConfig, or as per standard practice
         buildConfig true
@@ -29,9 +21,29 @@ android {
         versionName "1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        // Ensure GEMINI_API_KEY is not null or empty before assigning to prevent build issues
-        def apiKey = properties.getProperty("GEMINI_API_KEY")
-        if (apiKey == null) apiKey = "MISSING_API_KEY" // Default or placeholder if not found
+
+        // Read API key:
+        // 1. Try to get it from the environment variable (set in GitHub Actions from a secret)
+        // 2. If not found, try to get it from local.properties (for local development)
+        // 3. If still not found, use a placeholder to avoid build failure but indicate missing key.
+        def apiKey = System.getenv("GEMINI_API_KEY_FOR_BUILD")
+        if (apiKey == null || apiKey.isEmpty()) {
+            Properties properties = new Properties()
+            if (rootProject.file("local.properties").exists()) {
+                properties.load(rootProject.file("local.properties").newDataInputStream())
+                apiKey = properties.getProperty("GEMINI_API_KEY", "MISSING_API_KEY_IN_LOCAL_PROPERTIES")
+            } else {
+                // This case should ideally not happen if local.properties is correctly managed for local dev
+                apiKey = "MISSING_LOCAL_PROPERTIES_FILE"
+                println "Warning: local.properties file not found. GEMINI_API_KEY will be set to placeholder."
+            }
+        }
+
+        // Ensure a non-null, non-empty string is passed to buildConfigField,
+        // otherwise the build might fail if apiKey is truly null/empty at this point.
+        if (apiKey == null || apiKey.isEmpty()) {
+            apiKey = "FINAL_FALLBACK_MISSING_API_KEY" // Should not happen with above logic
+        }
 
         buildConfigField "String", "GEMINI_API_KEY", "\"${apiKey}\""
     }
@@ -61,7 +73,6 @@ dependencies {
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
 
     // Gemini API (placeholder - specific library may vary)
-    implementation "com.google.ai.client:google-ai-lib:0.0.1" // Example, replace with actual Gemini SDK
 
     // CameraX libraries
     def camerax_version = "1.3.0" // Use the latest stable version

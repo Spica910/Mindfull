@@ -1,0 +1,46 @@
+name: Android CI
+
+on:
+  push:
+    branches: [ "main", "develop" ] # Adjust branches as needed
+  pull_request:
+    branches: [ "main", "develop" ] # Adjust branches as needed
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        cache: 'gradle' # Cache Gradle dependencies
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3 # Using v3, check for latest if preferred
+      # with:
+      #   api-level: 34 # Optional: specify API level
+      #   build-tools: "34.0.0" # Optional: specify build tools version
+      #   ndk-version: "25.1.8937393" # Optional: if you need NDK
+      #   cmake-version: "3.22.1" # Optional: if you need CMake
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x ./gradlew
+
+    - name: Build with Gradle
+      env:
+        # Make the GitHub Secret available as an environment variable
+        GEMINI_API_KEY_FOR_BUILD: ${{ secrets.GEMINI_API_KEY }}
+      run: ./gradlew build
+
+    # Optional: Upload build artifacts (e.g., APK)
+    # - name: Upload APK
+    #   uses: actions/upload-artifact@v3
+    #   with:
+    #     name: app-debug.apk
+    #     path: app/build/outputs/apk/debug/app-debug.apk
