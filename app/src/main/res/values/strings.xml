@@ -15,4 +15,5 @@
         <item>en</item>
         <item>ko</item>
     </string-array>
+    <string name="meditation_finished_toast">Meditation finished.</string>
 </resources>
