@@ -32,6 +32,7 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import android.media.MediaPlayer // Import MediaPlayer
 import android.os.PowerManager // Added for WakeLock
+import android.speech.tts.TextToSpeech // Added for TTS
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import com.google.common.util.concurrent.ListenableFuture
@@ -43,8 +44,9 @@ import java.util.concurrent.Executors // Added
 // build environment isn't simulated. Assuming R references will resolve.
 
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener { // Added TTS Listener
 
+    private var tts: TextToSpeech? = null // Added for TTS
     private lateinit var cameraProviderFuture: ListenableFuture<ProcessCameraProvider>
     private lateinit var previewView: PreviewView
     private var mediaPlayer: MediaPlayer? = null
@@ -133,6 +135,40 @@ class MainActivity : ComponentActivity() {
         } else {
             requestPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
+
+        tts = TextToSpeech(this, this) // Initialize TTS
+    }
+
+    override fun onInit(status: Int) { // Added for TTS
+        if (status == TextToSpeech.SUCCESS) {
+            // Check if Korean language is available
+            val langResult = tts?.setLanguage(Locale.KOREAN)
+            if (langResult == TextToSpeech.LANG_MISSING_DATA || langResult == TextToSpeech.LANG_NOT_SUPPORTED) {
+                Log.e("TTS", "Korean language is not supported or missing data.")
+                // Optionally, try setting to default language or show a toast
+                val defaultLangResult = tts?.setLanguage(Locale.getDefault())
+                if (defaultLangResult == TextToSpeech.LANG_MISSING_DATA || defaultLangResult == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    Log.e("TTS", "Default language is also not supported or missing data.")
+                    Toast.makeText(this, "TTS language not supported.", Toast.LENGTH_SHORT).show()
+                } else {
+                    Log.i("TTS", "TTS initialized with default system language.")
+                }
+            } else {
+                Log.i("TTS", "TTS initialized successfully with Korean.")
+            }
+        } else {
+            Log.e("TTS", "TTS initialization failed with status: $status")
+            Toast.makeText(this, "TTS initialization failed.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun speak(text: String) { // Added for TTS
+        if (tts?.isSpeaking == true) {
+            tts?.stop() // Stop any current speech before starting new one
+        }
+        // QUEUE_FLUSH will interrupt current speech, QUEUE_ADD will add to the end.
+        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, null)
+        Log.d("TTS", "Attempting to speak: $text")
     }
 
     private fun startCamera() {
@@ -247,7 +283,9 @@ class MainActivity : ComponentActivity() {
         if (isMeditating) return
 
         isMeditating = true
-        updateGuideText(getString(R.string.guide_on_start)) // Uses getString
+        val guideOnStartText = getString(R.string.guide_on_start)
+        updateGuideText(guideOnStartText) // Uses getString
+        speak(guideOnStartText) // Speak the guide text
         buttonStart.setImageResource(R.drawable.ic_stop_placeholder) // Using placeholder
 
         // Acquire WakeLock
@@ -262,7 +300,6 @@ class MainActivity : ComponentActivity() {
         }
 
         playSound(R.raw.singing_bowl_start) // Assumes R.raw.singing_bowl_start exists
-        playSound(R.raw.korean_meditation_guide) // Play Korean meditation guide
 
         countDownTimer = object : CountDownTimer(meditationTimeMillis, 1000) {
             override fun onTick(millisUntilFinished: Long) {
@@ -279,8 +316,15 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun stopMeditation() {
+        if (tts?.isSpeaking == true) { // Added for TTS
+            tts?.stop()
+            Log.d("TTS", "TTS stopped due to meditation stop.")
+        }
+
         if (!isMeditating && countDownTimer == null) { // Check if it was never started
-            updateGuideText(getString(R.string.guide_initial_prompt)) // Uses getString
+            val initialPromptText = getString(R.string.guide_initial_prompt)
+            updateGuideText(initialPromptText) // Uses getString
+            speak(initialPromptText) // Speak the initial prompt
             return
         }
 
@@ -290,7 +334,9 @@ class MainActivity : ComponentActivity() {
         countDownTimer = null
 
         if (wasMeditating) { // Only if it was actually meditating
-            updateGuideText(getString(R.string.guide_on_finish)) // Uses getString
+            val guideOnFinishText = getString(R.string.guide_on_finish)
+            updateGuideText(guideOnFinishText) // Uses getString
+            speak(guideOnFinishText) // Speak the guide text
             playSound(R.raw.singing_bowl_end)
         }
 
@@ -306,13 +352,24 @@ class MainActivity : ComponentActivity() {
         if (wasMeditating) {
             Handler(Looper.getMainLooper()).postDelayed({
                 if(!isMeditating) { // Check again, in case user restarted meditation quickly
-                    updateGuideText(getString(R.string.guide_initial_prompt)) // Uses getString
+                    val initialPromptText = getString(R.string.guide_initial_prompt)
+                    updateGuideText(initialPromptText) // Uses getString
+                    speak(initialPromptText) // Speak the guide text
                 }
             }, 2000) // 2-second delay
         } else {
              // If not previously meditating (e.g. timer finished and this is a cleanup call from onFinish,
              // or was stopped before truly starting by clicking button again quickly), ensure default text is set.
-             updateGuideText(getString(R.string.guide_initial_prompt)) // Uses getString
+            val initialPromptText = getString(R.string.guide_initial_prompt)
+            updateGuideText(initialPromptText) // Uses getString
+            // Decide if speaking here is appropriate - if !wasMeditating, it means it wasn't running.
+            // However, if stopMeditation() was called when !isMeditating but countDownTimer != null (e.g. from onFinish),
+            // then speaking the initial prompt might be desired.
+            // For now, let's only speak if it wasn't a quick double stop.
+            // The initial call to stopMeditation already handles speaking the initial prompt if !isMeditating and timer is null.
+            if (countDownTimer == null && !isMeditating) { // Ensure it's truly reset
+                 speak(initialPromptText)
+            }
         }
         Log.d("MeditationApp", "Meditation stopped. Guide text updated.")
     }
@@ -330,6 +387,12 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        // Release TTS resources
+        if (tts != null) { // Added for TTS
+            tts?.stop()
+            tts?.shutdown()
+            Log.d("TTS", "TTS engine shut down.")
+        }
         super.onDestroy()
         cameraExecutor.shutdown()
         // Release WakeLock if held
@@ -394,6 +457,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun setLocale(languageCode: String) {
+        if (tts?.isSpeaking == true) { // Added for TTS
+            tts?.stop()
+            Log.d("TTS", "TTS stopped due to locale change.")
+        }
         val locale = Locale(languageCode)
         Locale.setDefault(locale)
         val config = Configuration()
