@@ -31,6 +31,7 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import android.media.MediaPlayer // Import MediaPlayer
+import android.os.PowerManager // Added for WakeLock
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import com.google.common.util.concurrent.ListenableFuture
@@ -47,6 +48,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var cameraProviderFuture: ListenableFuture<ProcessCameraProvider>
     private lateinit var previewView: PreviewView
     private var mediaPlayer: MediaPlayer? = null
+    private var wakeLock: PowerManager.WakeLock? = null // Added for WakeLock
 
     private lateinit var cameraExecutor: ExecutorService // Added
     private var imageAnalysis: ImageAnalysis? = null // Added
@@ -248,7 +250,19 @@ class MainActivity : ComponentActivity() {
         updateGuideText(getString(R.string.guide_on_start)) // Uses getString
         buttonStart.setImageResource(R.drawable.ic_stop_placeholder) // Using placeholder
 
+        // Acquire WakeLock
+        if (wakeLock == null) {
+            val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+            wakeLock = powerManager.newWakeLock(PowerManager.SCREEN_DIM_WAKE_LOCK, "MeditationApp::MeditationWakeLock")
+            // wakeLock?.setReferenceCounted(false) // Optional: if you want to manage acquire/release strictly. Default is true.
+        }
+        if (wakeLock?.isHeld == false) {
+            wakeLock?.acquire(meditationTimeMillis + 30000) // Acquire with a timeout slightly longer than meditation
+            Log.d("MeditationApp", "WakeLock acquired.")
+        }
+
         playSound(R.raw.singing_bowl_start) // Assumes R.raw.singing_bowl_start exists
+        playSound(R.raw.korean_meditation_guide) // Play Korean meditation guide
 
         countDownTimer = object : CountDownTimer(meditationTimeMillis, 1000) {
             override fun onTick(millisUntilFinished: Long) {
@@ -283,6 +297,12 @@ class MainActivity : ComponentActivity() {
         updateTimerDisplay(meditationTimeMillis) // Reset timer text to full duration
         buttonStart.setImageResource(R.drawable.ic_play_arrow_placeholder) // Using placeholder
 
+        // Release WakeLock
+        if (wakeLock?.isHeld == true) {
+            wakeLock?.release()
+            Log.d("MeditationApp", "WakeLock released.")
+        }
+
         if (wasMeditating) {
             Handler(Looper.getMainLooper()).postDelayed({
                 if(!isMeditating) { // Check again, in case user restarted meditation quickly
@@ -312,6 +332,12 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         cameraExecutor.shutdown()
+        // Release WakeLock if held
+        if (wakeLock?.isHeld == true) {
+            wakeLock?.release()
+            wakeLock = null // Clean up
+            Log.d("MeditationApp", "WakeLock released in onDestroy.")
+        }
     }
 
     private fun initializeGeminiClient() { // Added

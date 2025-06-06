@@ -2,12 +2,17 @@
 <resources>
     <string name="app_name">명상앱</string>
     <string name="meditation_time_label">시간: %s</string>
-    <string name="guide_initial_prompt">시작 버튼을 눌러 명상을 시작하세요.</string>
-    <string name="guide_on_start">숨을 깊게들이 마시고... 내쉬세요...</string>
-    <string name="guide_on_finish">명상이 종료되었습니다. 잠시 현재의 느낌에 머무르세요.</string>
+    <string name="guide_initial_prompt">이 자리에 온 여러분 자신에게 먼저 따뜻한 인사를 건넵니다.</string>
+    <string name="guide_on_start">이 자리에 온 여러분 자신에게 먼저 따뜻한 인사를 건넵니다.\n오늘 이 시간은 아무것도 하지 않아도 괜찮은 시간입니다.\n바쁘게 흘러가는 삶에서 잠시 멈추어, 지금 여기에 함께 머물러 봅니다.</string>
+    <string name="guide_on_finish">지금까지의 시간을 돌아보며, 고요함이 마음속에 머물러 있음을 느껴봅니다.\n잠시 후 일상으로 돌아가더라도, 이 평온함을 마음에 담아갑니다.\n자신에게 다시 한 번 고마움을 전합니다.\n이제 천천히 눈을 떠, 주변을 알아차리며 이 시간을 마무리합니다.</string>
     <string name="settings_title">설정</string>
     <string name="language_prompt">언어</string>
-    <!-- language_options and language_codes from default strings.xml will be used
-         if not overridden here. For this example, spinner items "English" / "한국어"
-         are universal. -->
+    <!-- Note: The full script provided in the issue is extensive.
+         These strings are updated to reflect the beginning, start, and end phases.
+         The main guided meditation content is expected to be in the audio file
+         korean_meditation_guide.mp3.
+         If the app were to display text for all phases of the new script dynamically,
+         more string resources and logic in MainActivity.kt to cycle through them
+         would be needed. For now, we are updating the primary text prompts.
+    -->
 </resources>
