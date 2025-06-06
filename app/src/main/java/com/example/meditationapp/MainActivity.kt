@@ -58,8 +58,29 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener { // Added
     // private var generativeModel: GenerativeModel? = null // Fully commented out
 
     private var isMeditating = false
-    private var meditationTimeMillis: Long = 5 * 60 * 1000 // Default 5 minutes
+    private var meditationTimeMillis: Long = 30 * 60 * 1000 // Default 30 minutes
     private var countDownTimer: CountDownTimer? = null
+
+    // Data structures and variables for timed meditation segments
+    private data class MeditationSegment(
+        val stringResId: Int,
+        val audioResId: Int,
+        val startTimeMillis: Long // Time from the beginning of meditation
+    )
+
+    private val meditationSegments = listOf(
+        MeditationSegment(R.string.guide_kor_0_3_min, R.raw.meditation_guide_kor_0_3_min, 0L),
+        MeditationSegment(R.string.guide_kor_3_7_min, R.raw.meditation_guide_kor_3_7_min, 3 * 60 * 1000L),
+        MeditationSegment(R.string.guide_kor_7_12_min, R.raw.meditation_guide_kor_7_12_min, 7 * 60 * 1000L),
+        MeditationSegment(R.string.guide_kor_12_17_min, R.raw.meditation_guide_kor_12_17_min, 12 * 60 * 1000L),
+        MeditationSegment(R.string.guide_kor_17_23_min, R.raw.meditation_guide_kor_17_23_min, 17 * 60 * 1000L),
+        MeditationSegment(R.string.guide_kor_23_27_min, R.raw.meditation_guide_kor_23_27_min, 23 * 60 * 1000L),
+        MeditationSegment(R.string.guide_kor_27_30_min, R.raw.meditation_guide_kor_27_30_min, 27 * 60 * 1000L)
+    )
+
+    private var currentSegmentIndex = -1 // Initialized to -1, set to 0 when meditation starts
+    private var initialAudioHandler: Handler? = null
+    private var initialAudioRunnable: Runnable? = null
 
     private lateinit var buttonStart: ImageButton
     private lateinit var textViewTime: TextView
@@ -116,6 +137,11 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener { // Added
         }
 
         updateGuideText(getString(R.string.guide_initial_prompt)) // Moved here and uses getString
+        if (tts != null && !(tts?.isSpeaking ?: false) && Locale.getDefault().language == "ko") {
+            Handler(Looper.getMainLooper()).postDelayed({ // Delay slightly to ensure UI is ready
+                speak(getString(R.string.guide_initial_prompt))
+            }, 500) // 0.5 second delay
+        }
 
         buttonStart.setOnClickListener {
             if (isMeditating) {
@@ -283,95 +309,109 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener { // Added
         if (isMeditating) return
 
         isMeditating = true
-        val guideOnStartText = getString(R.string.guide_on_start)
-        updateGuideText(guideOnStartText) // Uses getString
-        speak(guideOnStartText) // Speak the guide text
-        buttonStart.setImageResource(R.drawable.ic_stop_placeholder) // Using placeholder
+        buttonStart.setImageResource(R.drawable.ic_stop_placeholder)
 
-        // Acquire WakeLock
-        if (wakeLock == null) {
-            val powerManager = getSystemService(POWER_SERVICE) as PowerManager
-            wakeLock = powerManager.newWakeLock(PowerManager.SCREEN_DIM_WAKE_LOCK, "MeditationApp::MeditationWakeLock")
-            // wakeLock?.setReferenceCounted(false) // Optional: if you want to manage acquire/release strictly. Default is true.
+        currentSegmentIndex = 0 // Start with the first segment
+        playSound(R.raw.singing_bowl_start) // Play start sound
+
+        if (meditationSegments.isNotEmpty()) {
+            updateGuideText(getString(meditationSegments[0].stringResId))
+
+            initialAudioHandler?.removeCallbacks(initialAudioRunnable!!) // Cancel previous, if any
+            initialAudioHandler = Handler(Looper.getMainLooper())
+            initialAudioRunnable = Runnable {
+                if (isMeditating && currentSegmentIndex == 0) {
+                    playSound(meditationSegments[0].audioResId)
+                    Log.i("MeditationApp", "Playing segment 0 audio after delay.")
+                }
+            }
+            initialAudioHandler?.postDelayed(initialAudioRunnable!!, 1500) // 1.5s delay
+        } else {
+            Log.w("MeditationApp", "Meditation segments list is empty.")
+            // Potentially play a default sound or show a default message if segments are missing
         }
-        if (wakeLock?.isHeld == false) {
-            wakeLock?.acquire(meditationTimeMillis + 30000) // Acquire with a timeout slightly longer than meditation
-            Log.d("MeditationApp", "WakeLock acquired.")
-        }
 
-        playSound(R.raw.singing_bowl_start) // Assumes R.raw.singing_bowl_start exists
-
+        countDownTimer?.cancel()
         countDownTimer = object : CountDownTimer(meditationTimeMillis, 1000) {
             override fun onTick(millisUntilFinished: Long) {
                 updateTimerDisplay(millisUntilFinished)
+                val elapsedTime = meditationTimeMillis - millisUntilFinished
+
+                // Check if it's time to switch to the NEXT segment
+                if (currentSegmentIndex + 1 < meditationSegments.size) {
+                    val nextSegment = meditationSegments[currentSegmentIndex + 1]
+                    if (elapsedTime >= nextSegment.startTimeMillis) {
+                        currentSegmentIndex++ // Move to the next segment
+                        updateGuideText(getString(nextSegment.stringResId))
+                        playSound(nextSegment.audioResId) // playSound will stop previous audio
+                        Log.i("MeditationApp", "Transitioning to segment $currentSegmentIndex at $elapsedTime ms: ${getString(nextSegment.stringResId)}")
+                    }
+                }
             }
 
             override fun onFinish() {
                 stopMeditation()
-                // Optionally, provide feedback that meditation finished naturally
-                Toast.makeText(this@MainActivity, "Meditation finished", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@MainActivity, getString(R.string.meditation_finished_toast), Toast.LENGTH_SHORT).show()
             }
         }.start()
-        Log.d("MeditationApp", "Meditation started.")
+
+        if (wakeLock == null) {
+            val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+            wakeLock = powerManager.newWakeLock(PowerManager.SCREEN_DIM_WAKE_LOCK, "MeditationApp::MeditationWakeLock")
+        }
+        if (wakeLock?.isHeld == false) {
+            wakeLock?.acquire(meditationTimeMillis + 30000L) // Ensure it's a Long
+            Log.d("MeditationApp", "WakeLock acquired.")
+        }
+        Log.d("MeditationApp", "Meditation started with timed segments.")
     }
 
     private fun stopMeditation() {
-        if (tts?.isSpeaking == true) { // Added for TTS
-            tts?.stop()
-            Log.d("TTS", "TTS stopped due to meditation stop.")
-        }
+        initialAudioHandler?.removeCallbacks(initialAudioRunnable!!)
+        initialAudioHandler = null
+        initialAudioRunnable = null
 
-        if (!isMeditating && countDownTimer == null) { // Check if it was never started
-            val initialPromptText = getString(R.string.guide_initial_prompt)
-            updateGuideText(initialPromptText) // Uses getString
-            speak(initialPromptText) // Speak the initial prompt
-            return
-        }
-
-        val wasMeditating = isMeditating // Capture state before changing
+        val wasMeditating = isMeditating
         isMeditating = false
         countDownTimer?.cancel()
         countDownTimer = null
 
-        if (wasMeditating) { // Only if it was actually meditating
-            val guideOnFinishText = getString(R.string.guide_on_finish)
-            updateGuideText(guideOnFinishText) // Uses getString
-            speak(guideOnFinishText) // Speak the guide text
-            playSound(R.raw.singing_bowl_end)
+        if (tts?.isSpeaking == true) {
+            tts?.stop()
         }
 
-        updateTimerDisplay(meditationTimeMillis) // Reset timer text to full duration
-        buttonStart.setImageResource(R.drawable.ic_play_arrow_placeholder) // Using placeholder
+        // Explicitly stop and release current MediaPlayer before playing end bowl sound
+        mediaPlayer?.stop()
+        mediaPlayer?.release()
+        mediaPlayer = null
 
-        // Release WakeLock
+        if (wasMeditating) {
+            playSound(R.raw.singing_bowl_end)
+            if (meditationSegments.isNotEmpty()) {
+                // Show text of the last segment that was playing or should have played
+                // If currentSegmentIndex is valid, use it, otherwise default to last.
+                val lastPlayedSegmentStringId = if (currentSegmentIndex != -1 && currentSegmentIndex < meditationSegments.size) {
+                    meditationSegments[currentSegmentIndex].stringResId
+                } else {
+                    meditationSegments.last().stringResId
+                }
+                 updateGuideText(getString(lastPlayedSegmentStringId))
+            }
+        } else {
+            updateGuideText(getString(R.string.guide_initial_prompt))
+            if (tts != null && !(tts?.isSpeaking ?: false) && Locale.getDefault().language == "ko") {
+                speak(getString(R.string.guide_initial_prompt))
+            }
+        }
+
+        updateTimerDisplay(meditationTimeMillis)
+        buttonStart.setImageResource(R.drawable.ic_play_arrow_placeholder)
+
         if (wakeLock?.isHeld == true) {
             wakeLock?.release()
             Log.d("MeditationApp", "WakeLock released.")
         }
-
-        if (wasMeditating) {
-            Handler(Looper.getMainLooper()).postDelayed({
-                if(!isMeditating) { // Check again, in case user restarted meditation quickly
-                    val initialPromptText = getString(R.string.guide_initial_prompt)
-                    updateGuideText(initialPromptText) // Uses getString
-                    speak(initialPromptText) // Speak the guide text
-                }
-            }, 2000) // 2-second delay
-        } else {
-             // If not previously meditating (e.g. timer finished and this is a cleanup call from onFinish,
-             // or was stopped before truly starting by clicking button again quickly), ensure default text is set.
-            val initialPromptText = getString(R.string.guide_initial_prompt)
-            updateGuideText(initialPromptText) // Uses getString
-            // Decide if speaking here is appropriate - if !wasMeditating, it means it wasn't running.
-            // However, if stopMeditation() was called when !isMeditating but countDownTimer != null (e.g. from onFinish),
-            // then speaking the initial prompt might be desired.
-            // For now, let's only speak if it wasn't a quick double stop.
-            // The initial call to stopMeditation already handles speaking the initial prompt if !isMeditating and timer is null.
-            if (countDownTimer == null && !isMeditating) { // Ensure it's truly reset
-                 speak(initialPromptText)
-            }
-        }
-        Log.d("MeditationApp", "Meditation stopped. Guide text updated.")
+        Log.d("MeditationApp", "Meditation stopped.")
     }
 
     private fun updateTimerDisplay(millis: Long) {
