@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">명상앱</string>
+    <string name="meditation_time_label">시간: %s</string>
+    <string name="guide_initial_prompt">시작 버튼을 눌러 명상을 시작하세요.</string>
+    <string name="guide_on_start">숨을 깊게들이 마시고... 내쉬세요...</string>
+    <string name="guide_on_finish">명상이 종료되었습니다. 잠시 현재의 느낌에 머무르세요.</string>
+    <string name="settings_title">설정</string>
+    <string name="language_prompt">언어</string>
+    <!-- language_options and language_codes from default strings.xml will be used
+         if not overridden here. For this example, spinner items "English" / "한국어"
+         are universal. -->
+</resources>

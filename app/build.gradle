@@ -10,6 +10,15 @@ android {
     Properties properties = new Properties()
     if (rootProject.file("local.properties").exists()) {
         properties.load(rootProject.file("local.properties").newDataInputStream())
+    } else {
+        // Fallback if local.properties is missing, though the goal is to create it.
+        // This could also throw an error or use a default non-functional key.
+        // For this subtask, we assume local.properties will be created.
+        println "Warning: local.properties file not found. GEMINI_API_KEY will not be set from it."
+    }
+
+    buildFeatures { // Ensuring buildFeatures is before defaultConfig, or as per standard practice
+        buildConfig true
     }
 
     defaultConfig {
@@ -20,11 +29,11 @@ android {
         versionName "1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField "String", "GEMINI_API_KEY", "\"${properties.getProperty("GEMINI_API_KEY")}\""
-    }
+        // Ensure GEMINI_API_KEY is not null or empty before assigning to prevent build issues
+        def apiKey = properties.getProperty("GEMINI_API_KEY")
+        if (apiKey == null) apiKey = "MISSING_API_KEY" // Default or placeholder if not found
 
-    buildFeatures {
-        buildConfig true
+        buildConfigField "String", "GEMINI_API_KEY", "\"${apiKey}\""
     }
 
     buildTypes {
