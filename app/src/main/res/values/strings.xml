@@ -1,4 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">MeditationApp</string>
+    <string name="meditation_time_label">Time: %s</string>
+    <string name="guide_initial_prompt">Press start to begin meditation.</string>
+    <string name="guide_on_start">Breathe deeply... inhale... exhale...</string>
+    <string name="guide_on_finish">Meditation finished. Rest in this feeling.</string>
+    <string name="settings_title">Settings</string>
+    <string name="language_prompt">Language</string>
+    <string-array name="language_options">
+        <item>English</item>
+        <item>한국어</item>
+    </string-array>
+    <string-array name="language_codes">
+        <item>en</item>
+        <item>ko</item>
+    </string-array>
 </resources>

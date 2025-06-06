@@ -50,6 +50,7 @@
             android:layout_width="wrap_content"
             android:layout_height="48dp"
             android:minWidth="100dp"
+            android:entries="@array/language_options"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent"
