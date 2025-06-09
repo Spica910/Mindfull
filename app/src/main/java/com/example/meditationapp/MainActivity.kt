@@ -16,7 +16,12 @@ import android.graphics.ImageFormat // Added
 import android.graphics.Rect // Added
 import android.graphics.YuvImage // Added
 import java.io.ByteArrayOutputStream // Added
-// import com.google.ai.client.generativeai.GenerativeModel // Placeholder for actual Gemini SDK
+import com.google.ai.client.generativeai.GenerativeModel // Added for Gemini SDK
+import com.google.ai.client.generativeai.type.content // For the content { } builder
+import com.google.ai.client.generativeai.type.InvalidStateException // For error handling
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import android.widget.ImageButton // Added
 import android.widget.TextView // Added
 import android.widget.Toast
@@ -54,8 +59,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener { // Added
 
     private lateinit var cameraExecutor: ExecutorService // Added
     private var imageAnalysis: ImageAnalysis? = null // Added
-    // private var generativeModel: com.google.ai.client.generativeai.GenerativeModel? = null // Placeholder - Now fully commented
-    // private var generativeModel: GenerativeModel? = null // Fully commented out
+    private var generativeModel: GenerativeModel? = null // For Gemini AI Client
 
     private var isMeditating = false
     private var meditationTimeMillis: Long = 30 * 60 * 1000 // Default 30 minutes
@@ -81,6 +85,10 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener { // Added
     private var currentSegmentIndex = -1 // Initialized to -1, set to 0 when meditation starts
     private var initialAudioHandler: Handler? = null
     private var initialAudioRunnable: Runnable? = null
+
+    @Volatile // Ensure visibility across threads, though System.currentTimeMillis is usually safe
+    private var lastFrameSentToGeminiMs: Long = 0L
+    private val geminiFrameProcessingIntervalMs: Long = 5000L // Process one frame every 5 seconds
 
     private lateinit var buttonStart: ImageButton
     private lateinit var textViewTime: TextView
@@ -231,21 +239,72 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener { // Added
         // Direct analyzer implementation
         imageAnalysis?.setAnalyzer(cameraExecutor, ImageAnalysis.Analyzer { imageProxy ->
             try {
+                // --- Start of Throttling Logic ---
+                val currentTimeMs = System.currentTimeMillis()
+                if (currentTimeMs - lastFrameSentToGeminiMs < geminiFrameProcessingIntervalMs) {
+                    imageProxy.close() // Must close the proxy to allow next frame
+                    return@Analyzer   // Skip this frame
+                }
+                // --- End of Throttling Logic ---
+
                 val rotationDegrees = imageProxy.imageInfo.rotationDegrees
-                Log.d("CameraXApp", "ImageAnalysis: Frame received. Rotation: $rotationDegrees")
+                // Log.d("CameraXApp", "ImageAnalysis: Frame received. Rotation: $rotationDegrees") // Keep for debugging if needed
 
                 val bitmap = imageProxyToBitmap(imageProxy)
                 if (bitmap != null) {
-                    Log.d("CameraXApp", "Bitmap created: ${bitmap.width}x${bitmap.height}")
-                    // TODO: Pass this bitmap to Gemini API
-                    // bitmap.recycle() // Consider lifecycle if passing bitmap around
+                    Log.d("CameraXApp", "Bitmap created: ${bitmap.width}x${bitmap.height}. Throttling check passed, preparing for Gemini.")
+
+                    // Update last sent time *before* launching the coroutine to avoid race conditions
+                    // if multiple frames arrive quickly and pass the initial check.
+                    lastFrameSentToGeminiMs = currentTimeMs
+
+                    // Check if generativeModel is initialized
+                    if (generativeModel == null) {
+                        Log.w("GeminiAPI", "Gemini model not initialized. Skipping image submission.")
+                        // imageProxy.close() is handled in finally
+                        return@Analyzer
+                    }
+
+                    // Launch a coroutine for the network request
+                    CoroutineScope(Dispatchers.IO).launch {
+                        try {
+                            val prompt = "Describe what you see in this image." // Simple initial prompt
+
+                            // Construct the content for Gemini
+                            val inputContent = content {
+                                image(bitmap)
+                                text(prompt)
+                            }
+
+                            Log.d("GeminiAPI", "Sending image and prompt to Gemini API...")
+                            val response = generativeModel!!.generateContent(inputContent) // Use !! as we checked for null
+
+                            // Log the response (next step will handle displaying it)
+                            Log.i("GeminiAPI", "Gemini API Response: ${response.text}")
+
+                            // Recycle the bitmap after it has been used by the API if it's not needed anymore
+                            // However, be cautious if the bitmap is still needed elsewhere or if generateContent is truly async
+                            // For now, let's assume generateContent processes it and we can recycle.
+                            // If issues occur, this recycle might need to be moved or removed.
+                            // bitmap.recycle() // Potentially recycle, but test carefully. For now, let's omit to be safe with async calls.
+
+                        } catch (e: InvalidStateException) {
+                            Log.e("GeminiAPI", "InvalidStateException (e.g. API key issue after init): ${e.localizedMessage}", e)
+                            // Potentially show a Toast to the user on the main thread
+                            // launch(Dispatchers.Main) { Toast.makeText(this@MainActivity, "Gemini API Error: ${e.localizedMessage}", Toast.LENGTH_LONG).show() }
+                        } catch (e: Exception) {
+                            Log.e("GeminiAPI", "Error calling Gemini API: ${e.localizedMessage}", e)
+                            // Potentially show a Toast to the user on the main thread
+                            // launch(Dispatchers.Main) { Toast.makeText(this@MainActivity, "Gemini API Error: ${e.localizedMessage}", Toast.LENGTH_LONG).show() }
+                        }
+                    }
                 } else {
                     Log.e("CameraXApp", "Could not convert ImageProxy to Bitmap.")
                 }
             } catch (e: Exception) {
-                Log.e("CameraXApp", "Error during image analysis or conversion", e)
+                Log.e("CameraXApp", "Error during image analysis or Gemini call setup", e)
             } finally {
-                imageProxy.close() // Ensure this is always called.
+                imageProxy.close() // Crucial: Ensure ImageProxy is always closed
             }
         })
 
@@ -501,13 +560,14 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener { // Added
         }
 
         try {
-            // Replace with actual Gemini SDK initialization call and model name
-            // generativeModel = GenerativeModel(
-            //    modelName = "gemini-pro-vision", // Or your desired vision model
-            //    apiKey = apiKey
-            // )
-            Log.i("GeminiAPI", "Gemini AI Client would be initialized here if SDK was fully available.")
-            Toast.makeText(this, "Gemini Client ready (simulated)", Toast.LENGTH_SHORT).show()
+            // Uncommented and configured:
+            generativeModel = GenerativeModel(
+                modelName = "gemini-pro-vision",
+                apiKey = apiKey
+                // Optionally, add generationConfig, safetySettings etc. if needed later
+            )
+            Log.i("GeminiAPI", "Gemini AI Client Initialized successfully with gemini-pro-vision.")
+            Toast.makeText(this, "Gemini Client Initialized.", Toast.LENGTH_SHORT).show()
 
         } catch (e: Exception) {
             Log.e("GeminiAPI", "Error initializing Gemini AI Client", e)

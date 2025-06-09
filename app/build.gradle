@@ -73,6 +73,7 @@ dependencies {
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
 
     // Gemini API (placeholder - specific library may vary)
+    implementation("com.google.ai.client.generativeai:generativeai:0.2.0")
 
     // CameraX libraries
     def camerax_version = "1.3.0" // Use the latest stable version
