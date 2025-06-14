@@ -7,6 +7,8 @@
     <string name="guide_on_finish">Meditation finished. Rest in this feeling.</string>
     <string name="settings_title">Settings</string>
     <string name="language_prompt">Language</string>
+    <string name="duration_label">Duration (minutes)</string>
+    <string name="method_label">Method</string>
     <string-array name="language_options">
         <item>English</item>
         <item>한국어</item>
@@ -15,6 +17,18 @@
         <item>en</item>
         <item>ko</item>
     </string-array>
+    <string-array name="duration_options">
+        <item>5</item>
+        <item>10</item>
+        <item>15</item>
+        <item>20</item>
+        <item>30</item>
+    </string-array>
+    <string-array name="method_options">
+        <item>Guided</item>
+        <item>Silent</item>
+    </string-array>
+    <string name="silent_mode_text">Meditation in silence. Focus on your breath.</string>
     <string name="meditation_finished_toast">Meditation finished.</string>
     <string name="guide_kor_0_3_min">0-3 min: Settling in. Find a comfortable position, straighten your back, and gently close your eyes or lower your gaze.</string>
     <string name="guide_kor_3_7_min">3-7 min: Body awareness. Gently bring your attention to the sensations in your body, scanning from head to toe. Notice any tension or warmth without judgment.</string>
