@@ -1,11 +1,11 @@
 package com.example.meditationapp
 
 import android.os.Bundle
-import android.widget.TextView
+import android.widget.AdapterView
+import android.widget.Spinner
 import androidx.appcompat.app.AppCompatActivity
 
 class SettingsActivity : AppCompatActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
@@ -13,24 +13,37 @@ class SettingsActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.title = getString(R.string.settings_title)
 
-        val textViewSystemPrompt: TextView = findViewById(R.id.textViewSystemPrompt)
+        val prefs = getSharedPreferences("MeditationPrefs", MODE_PRIVATE)
+        val spinnerDuration: Spinner = findViewById(R.id.spinnerDuration)
+        val spinnerMethod: Spinner = findViewById(R.id.spinnerMethod)
 
-        val systemPrompt = "You are a mindful meditation guide.\n" +
-                           "Your goal is to help the user maintain proper posture and focus on their breath.\n" +
-                           "Observe the user through the camera feed.\n" +
-                           "If you notice the user's posture is slumping, gently remind them to sit up straight.\n" +
-                           "If you notice the user's breathing is shallow or erratic, guide them to take deep, slow breaths.\n" +
-                           "If the user seems distracted or restless, offer words of encouragement to bring their focus back to their breath.\n" +
-                           "Provide guidance in a calm, soothing, and positive tone.\n" +
-                           "Keep your instructions concise and easy to follow.\n" +
-                           "The user is doing a mindfulness exercise.\n" +
-                           "Your persona is a calm and experienced meditation coach."
+        val durations = resources.getStringArray(R.array.duration_options).map { it.toInt() }
+        val savedDuration = prefs.getInt("meditation_duration", 30)
+        val durationIndex = durations.indexOf(savedDuration).takeIf { it >= 0 } ?: 4
+        spinnerDuration.setSelection(durationIndex)
 
-        textViewSystemPrompt.text = systemPrompt
+        val methods = resources.getStringArray(R.array.method_options)
+        val savedMethod = prefs.getString("meditation_method", "guided") ?: "guided"
+        val methodIndex = methods.indexOfFirst { it.equals(savedMethod, ignoreCase = true) }.takeIf { it >= 0 } ?: 0
+        spinnerMethod.setSelection(methodIndex)
+
+        spinnerDuration.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                prefs.edit().putInt("meditation_duration", durations[position]).apply()
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+
+        spinnerMethod.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                prefs.edit().putString("meditation_method", methods[position].lowercase()).apply()
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
     }
 
     override fun onSupportNavigateUp(): Boolean {
-        onBackPressedDispatcher.onBackPressed() // Changed from onBackPressed() for compatibility
+        onBackPressedDispatcher.onBackPressed()
         return true
     }
 }

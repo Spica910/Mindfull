@@ -1,44 +1,25 @@
 package com.example.meditationapp
 
-import android.Manifest
-import android.content.Intent // Added
-import android.content.pm.PackageManager
+import android.content.Intent
 import android.os.Bundle
-import android.os.CountDownTimer // Added
-import android.os.Handler // Added
-import android.os.Looper // Added
+import android.os.CountDownTimer
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
-import androidx.camera.core.ImageAnalysis // Added
-import androidx.camera.core.ImageProxy // Added
-import android.graphics.Bitmap // Added
-import android.graphics.BitmapFactory // Added
-import android.graphics.ImageFormat // Added
-import android.graphics.Rect // Added
-import android.graphics.YuvImage // Added
-import java.io.ByteArrayOutputStream // Added
 // import com.google.ai.client.generativeai.GenerativeModel // Placeholder for actual Gemini SDK
-import android.widget.ImageButton // Added
-import android.widget.TextView // Added
+import android.widget.ImageButton
+import android.widget.TextView
 import android.widget.Toast
-import android.widget.Spinner // Added
-import android.widget.AdapterView // Added
-import android.content.res.Configuration // Added
+import android.widget.Spinner
+import android.widget.AdapterView
+import android.content.res.Configuration
 // ArrayAdapter might be needed if not using android:entries, but not for this example
-import java.util.Locale // Added
+import java.util.Locale
 import androidx.activity.ComponentActivity
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.Preview
-import androidx.camera.lifecycle.ProcessCameraProvider
-import android.media.MediaPlayer // Import MediaPlayer
-import android.os.PowerManager // Added for WakeLock
-import android.speech.tts.TextToSpeech // Added for TTS
-import androidx.camera.view.PreviewView
-import androidx.core.content.ContextCompat
-import com.google.common.util.concurrent.ListenableFuture
-import com.example.meditationapp.BuildConfig // Import BuildConfig
-import java.util.concurrent.ExecutorService // Added
-import java.util.concurrent.Executors // Added
+import android.media.MediaPlayer
+import android.os.PowerManager
+import android.speech.tts.TextToSpeech
+import com.example.meditationapp.BuildConfig
 // It's good practice to use the specific R class from your package if available,
 // but for this tool, direct R.layout/id might be more straightforward if full
 // build environment isn't simulated. Assuming R references will resolve.
@@ -47,18 +28,15 @@ import java.util.concurrent.Executors // Added
 class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener { // Added TTS Listener
 
     private var tts: TextToSpeech? = null // Added for TTS
-    private lateinit var cameraProviderFuture: ListenableFuture<ProcessCameraProvider>
-    private lateinit var previewView: PreviewView
     private var mediaPlayer: MediaPlayer? = null
     private var wakeLock: PowerManager.WakeLock? = null // Added for WakeLock
 
-    private lateinit var cameraExecutor: ExecutorService // Added
-    private var imageAnalysis: ImageAnalysis? = null // Added
     // private var generativeModel: com.google.ai.client.generativeai.GenerativeModel? = null // Placeholder - Now fully commented
     // private var generativeModel: GenerativeModel? = null // Fully commented out
 
     private var isMeditating = false
     private var meditationTimeMillis: Long = 30 * 60 * 1000 // Default 30 minutes
+    private var meditationMethod: String = "guided" // guided or silent
     private var countDownTimer: CountDownTimer? = null
 
     // Data structures and variables for timed meditation segments
@@ -88,31 +66,21 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener { // Added
     private lateinit var buttonSettings: ImageButton // Added
     private lateinit var spinnerLanguage: Spinner // Added
 
-    private val requestPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
-            if (isGranted) {
-                startCamera()
-            } else {
-                Toast.makeText(this, "Camera permission denied", Toast.LENGTH_SHORT).show()
-            }
-        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Ensure this matches your layout file name, e.g., from a previous step
         setContentView(R.layout.activity_main)
 
-        cameraExecutor = Executors.newSingleThreadExecutor() // Added
-
-        // Ensure this matches your PreviewView's ID in the XML, e.g., from a previous step
-        previewView = findViewById(R.id.previewView)
+        val prefs = getSharedPreferences("MeditationPrefs", MODE_PRIVATE)
+        meditationTimeMillis = prefs.getInt("meditation_duration", 30) * 60 * 1000L
+        meditationMethod = prefs.getString("meditation_method", "guided") ?: "guided"
 
         Log.d("GeminiAPI", "API Key: ${BuildConfig.GEMINI_API_KEY}")
         initializeGeminiClient() // Called here
 
         buttonStart = findViewById(R.id.buttonStart)
         textViewTime = findViewById(R.id.textViewTime)
-        textViewGuide = findViewById(R.id.textViewGuide) // Added
         buttonSettings = findViewById(R.id.buttonSettings) // Added
 
         updateTimerDisplay(meditationTimeMillis) // Show initial time
@@ -156,19 +124,11 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener { // Added
             startActivity(intent)
         }
 
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-            startCamera()
-        } else {
-            requestPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
 
         tts = TextToSpeech(this, this) // Initialize TTS
     }
 
-    override fun onInit(status: Int) {
-        if (status == TextToSpeech.SUCCESS) {
-            Log.i("TTS", "TTS Engine Initialized successfully.")
-            // Attempt to set Korean language
             val langResult = tts?.setLanguage(Locale.KOREAN)
             if (langResult == TextToSpeech.LANG_MISSING_DATA || langResult == TextToSpeech.LANG_NOT_SUPPORTED) {
                 Log.e("TTS", "Korean language is not supported or missing data for TTS. Trying default.")
@@ -206,63 +166,6 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener { // Added
         Log.d("TTS", "Attempting to speak: $text")
     }
 
-    private fun startCamera() {
-        cameraProviderFuture = ProcessCameraProvider.getInstance(this)
-        cameraProviderFuture.addListener({
-            val cameraProvider = cameraProviderFuture.get()
-            bindCameraUseCases(cameraProvider) // Use the new method name
-        }, ContextCompat.getMainExecutor(this))
-    }
-
-    private fun bindCameraUseCases(cameraProvider: ProcessCameraProvider) { // Renamed from bindPreview
-        val preview: Preview = Preview.Builder().build()
-        val cameraSelector: CameraSelector = CameraSelector.Builder()
-            .requireLensFacing(CameraSelector.LENS_FACING_FRONT)
-            .build()
-
-        preview.setSurfaceProvider(previewView.surfaceProvider)
-
-        // Setup ImageAnalysis
-        imageAnalysis = ImageAnalysis.Builder()
-            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-            // Optionally set target resolution if needed: .setTargetResolution(Size(640, 480))
-            .build()
-
-        // Direct analyzer implementation
-        imageAnalysis?.setAnalyzer(cameraExecutor, ImageAnalysis.Analyzer { imageProxy ->
-            try {
-                val rotationDegrees = imageProxy.imageInfo.rotationDegrees
-                Log.d("CameraXApp", "ImageAnalysis: Frame received. Rotation: $rotationDegrees")
-
-                val bitmap = imageProxyToBitmap(imageProxy)
-                if (bitmap != null) {
-                    Log.d("CameraXApp", "Bitmap created: ${bitmap.width}x${bitmap.height}")
-                    // TODO: Pass this bitmap to Gemini API
-                    // bitmap.recycle() // Consider lifecycle if passing bitmap around
-                } else {
-                    Log.e("CameraXApp", "Could not convert ImageProxy to Bitmap.")
-                }
-            } catch (e: Exception) {
-                Log.e("CameraXApp", "Error during image analysis or conversion", e)
-            } finally {
-                imageProxy.close() // Ensure this is always called.
-            }
-        })
-
-        try {
-            cameraProvider.unbindAll() // Unbind use cases before rebinding
-            // Bind use cases to camera
-            if (imageAnalysis != null) {
-                cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalysis)
-            } else {
-                cameraProvider.bindToLifecycle(this, cameraSelector, preview)
-            }
-            Log.d("CameraXApp", "Camera use cases bound.")
-        } catch (e: Exception) {
-            Log.e("CameraXApp", "Use case binding failed", e)
-            Toast.makeText(this, "Failed to start camera features: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
 
     // Placeholder for actual Gemini Client Initialization
     // private fun initializeGeminiClient() {
@@ -352,27 +255,25 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener { // Added
         currentSegmentIndex = 0 // Start with the first segment
         tryPlaySoundAndReturnSuccess(R.raw.singing_bowl_start) // Play start sound
 
-        if (meditationSegments.isNotEmpty()) {
+        if (meditationMethod == "guided" && meditationSegments.isNotEmpty()) {
             updateGuideText(getString(meditationSegments[0].stringResId))
 
-            initialAudioHandler?.removeCallbacks(initialAudioRunnable!!) // Cancel previous, if any
+            initialAudioHandler?.removeCallbacks(initialAudioRunnable!!)
             initialAudioHandler = Handler(Looper.getMainLooper())
             initialAudioRunnable = Runnable {
                 if (isMeditating && currentSegmentIndex == 0) {
-                    if (meditationSegments.isNotEmpty()) { // Ensure segments exist
+                    if (meditationSegments.isNotEmpty()) {
                         val audioSuccess = tryPlaySoundAndReturnSuccess(meditationSegments[0].audioResId)
                         if (!audioSuccess) {
-                            // Fallback to TTS if audio failed for the first segment
                             speak(getString(meditationSegments[0].stringResId))
                             Log.i("MeditationApp", "Audio fallback in initialAudioRunnable: Spoke segment 0")
                         }
                     }
                 }
             }
-            initialAudioHandler?.postDelayed(initialAudioRunnable!!, 1500) // 1.5s delay
-        } else {
-            Log.w("MeditationApp", "Meditation segments list is empty.")
-            // Potentially play a default sound or show a default message if segments are missing
+            initialAudioHandler?.postDelayed(initialAudioRunnable!!, 1500)
+        } else if (meditationMethod == "silent") {
+            updateGuideText(getString(R.string.silent_mode_text))
         }
 
         countDownTimer?.cancel()
@@ -381,15 +282,13 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener { // Added
                 updateTimerDisplay(millisUntilFinished)
                 val elapsedTime = meditationTimeMillis - millisUntilFinished
 
-                // Check if it's time to switch to the NEXT segment
-                if (currentSegmentIndex + 1 < meditationSegments.size) {
+                if (meditationMethod == "guided" && currentSegmentIndex + 1 < meditationSegments.size) {
                     val nextSegment = meditationSegments[currentSegmentIndex + 1]
                     if (elapsedTime >= nextSegment.startTimeMillis) {
-                        currentSegmentIndex++ // Move to the next segment
+                        currentSegmentIndex++
                         updateGuideText(getString(nextSegment.stringResId))
                         val audioSuccess = tryPlaySoundAndReturnSuccess(nextSegment.audioResId)
                         if (!audioSuccess) {
-                            // Fallback to TTS if audio failed for this segment
                             speak(getString(nextSegment.stringResId))
                             Log.i("MeditationApp", "Audio fallback in onTick: Spoke segment ${getString(nextSegment.stringResId)}")
                         }
@@ -436,15 +335,15 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener { // Added
 
         if (wasMeditating) {
             tryPlaySoundAndReturnSuccess(R.raw.singing_bowl_end)
-            if (meditationSegments.isNotEmpty()) {
-                // Show text of the last segment that was playing or should have played
-                // If currentSegmentIndex is valid, use it, otherwise default to last.
+            if (meditationMethod == "guided" && meditationSegments.isNotEmpty()) {
                 val lastPlayedSegmentStringId = if (currentSegmentIndex != -1 && currentSegmentIndex < meditationSegments.size) {
                     meditationSegments[currentSegmentIndex].stringResId
                 } else {
                     meditationSegments.last().stringResId
                 }
-                 updateGuideText(getString(lastPlayedSegmentStringId))
+                updateGuideText(getString(lastPlayedSegmentStringId))
+            } else {
+                updateGuideText(getString(R.string.silent_mode_text))
             }
         } else {
             updateGuideText(getString(R.string.guide_initial_prompt))
@@ -483,7 +382,6 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener { // Added
             Log.d("TTS", "TTS engine shut down.")
         }
         super.onDestroy()
-        cameraExecutor.shutdown()
         // Release WakeLock if held
         if (wakeLock?.isHeld == true) {
             wakeLock?.release()
@@ -513,36 +411,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener { // Added
             Log.e("GeminiAPI", "Error initializing Gemini AI Client", e)
             Toast.makeText(this, "Error initializing Gemini: ${e.message}", Toast.LENGTH_LONG).show()
         }
-    }
 
-    private fun imageProxyToBitmap(image: ImageProxy): Bitmap? { // Added
-        if (image.format != ImageFormat.YUV_420_888) {
-            Log.e("ImageConverter", "Unsupported image format: ${image.format}")
-            return null
-        }
-
-        val yBuffer = image.planes[0].buffer // Y
-        val uBuffer = image.planes[1].buffer // U
-        val vBuffer = image.planes[2].buffer // V
-
-        val ySize = yBuffer.remaining()
-        val uSize = uBuffer.remaining()
-        val vSize = vBuffer.remaining()
-
-        val nv21 = ByteArray(ySize + uSize + vSize)
-
-        yBuffer.get(nv21, 0, ySize)
-        vBuffer.get(nv21, ySize, vSize)
-        uBuffer.get(nv21, ySize + vSize, uSize)
-
-        val yuvImage = YuvImage(nv21, ImageFormat.NV21, image.width, image.height, null)
-        val out = ByteArrayOutputStream()
-        if (!yuvImage.compressToJpeg(Rect(0, 0, image.width, image.height), 100, out)) {
-            Log.e("ImageConverter", "YuvImage compression failed")
-            return null
-        }
-        val imageBytes = out.toByteArray()
-        return BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
     }
 
     private fun setLocale(languageCode: String) {
