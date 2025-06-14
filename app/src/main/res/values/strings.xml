@@ -2,9 +2,9 @@
 <resources>
     <string name="app_name">MeditationApp</string>
     <string name="meditation_time_label">Time: %s</string>
-    <string name="guide_initial_prompt">Press start to begin meditation.</string>
-    <string name="guide_on_start">Breathe deeply... inhale... exhale...</string>
-    <string name="guide_on_finish">Meditation finished. Rest in this feeling.</string>
+    <string name="guide_initial_prompt">Offer yourself a warm greeting as you settle in.</string>
+    <string name="guide_on_start">Take this moment to pause from the busyness of life and simply be here.</string>
+    <string name="guide_on_finish">Reflect on the stillness you cultivated. Carry this sense of calm into the rest of your day.</string>
     <string name="settings_title">Settings</string>
     <string name="language_prompt">Language</string>
     <string-array name="language_options">
@@ -16,11 +16,11 @@
         <item>ko</item>
     </string-array>
     <string name="meditation_finished_toast">Meditation finished.</string>
-    <string name="guide_kor_0_3_min">0-3 min: Settling in. Find a comfortable position, straighten your back, and gently close your eyes or lower your gaze.</string>
-    <string name="guide_kor_3_7_min">3-7 min: Body awareness. Gently bring your attention to the sensations in your body, scanning from head to toe. Notice any tension or warmth without judgment.</string>
-    <string name="guide_kor_7_12_min">7-12 min: Breath observation. Notice the natural rhythm of your breath. Feel the air entering and leaving your body. If your mind wanders, gently return your focus to your breath.</string>
-    <string name="guide_kor_12_17_min">12-17 min: Observing thoughts and feelings. Acknowledge any thoughts or emotions that arise without getting carried away by them. Observe them like clouds passing in the sky.</string>
-    <string name="guide_kor_17_23_min">17-23 min: Self-compassion. Offer yourself some kind words. \'I am doing my best.\' \'May I be peaceful.\' Embrace yourself with gentle acceptance.</string>
-    <string name="guide_kor_23_27_min">23-27 min: Returning to the body. Gently bring your awareness back to the physical sensations. Feel the contact with the floor or chair. Wiggle your fingers and toes.</string>
-    <string name="guide_kor_27_30_min">27-30 min: Concluding meditation. Gently open your eyes. Carry this sense of calm with you. Thank yourself for this time.</string>
+    <string name="guide_kor_0_3_min">0-3 min: Sit or lie down comfortably with a gentle upright posture. Close your eyes or soften your gaze, noticing that you are here in this moment.</string>
+    <string name="guide_kor_3_7_min">3-7 min: Bring awareness to the sensations in your body. Slowly scan from head to toe, observing any tension or warmth without judgment.</string>
+    <string name="guide_kor_7_12_min">7-12 min: Observe the natural rhythm of your breathing. Feel each inhalation and exhalation. If the mind wanders, kindly return to the breath.</string>
+    <string name="guide_kor_12_17_min">12-17 min: Notice any emotions or thoughts that arise. Recognize them without trying to push them away, letting them drift like clouds.</string>
+    <string name="guide_kor_17_23_min">17-23 min: Offer yourself gentle words: 'I am doing my best. I am okay in this moment.' Extend silent well-wishes to others: 'May you be peaceful.'</string>
+    <string name="guide_kor_23_27_min">23-27 min: Bring your attention back to the physical sensations of your body. Feel your contact with the floor or chair and gently awaken your hands and shoulders.</string>
+    <string name="guide_kor_27_30_min">27-30 min: Slowly open your eyes and complete the practice with gratitude. Remember you can return to this calm whenever you wish.</string>
 </resources>

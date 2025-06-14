@@ -180,16 +180,16 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener { // Added
                 } else {
                     Log.i("TTS", "TTS language set to default system language.")
                     // Set speech rate and pitch for default language
-                    tts?.setSpeechRate(0.8f) // Slower speed
-                    tts?.setPitch(1.0f)    // Normal pitch
-                    Log.i("TTS", "Set speech rate to 0.8, pitch to 1.0 for default language.")
+                    tts?.setSpeechRate(0.7f) // Calmer speed
+                    tts?.setPitch(0.9f)    // Slightly lower pitch
+                    Log.i("TTS", "Set speech rate to 0.7, pitch to 0.9 for default language.")
                 }
             } else {
                 Log.i("TTS", "TTS language set to Korean.")
                 // Set speech rate and pitch for Korean
-                tts?.setSpeechRate(0.8f) // Slower speed
-                tts?.setPitch(1.0f)    // Normal pitch
-                Log.i("TTS", "Set speech rate to 0.8, pitch to 1.0 for Korean.")
+                tts?.setSpeechRate(0.7f) // Calmer speed
+                tts?.setPitch(0.9f)    // Slightly lower pitch
+                Log.i("TTS", "Set speech rate to 0.7, pitch to 0.9 for Korean.")
             }
         } else {
             Log.e("TTS", "TTS initialization failed with status: $status")
